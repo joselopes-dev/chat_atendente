@@ -1,211 +1,78 @@
 """
 ===========================================================
-ASSISTENTE DE FARMÁCIA - VERSÃO 1
+ASSISTENTE DE FARMÁCIA - VERSÃO TELEGRAM
 ===========================================================
-
-Objetivo didático:
-    Demonstrar como construir um chatbot simples baseado
-    em regras, sem Machine Learning.
-
-Conceitos de PLN trabalhados:
-    - Normalização de texto
-    - Tokenização
-    - Expressões Regulares (Regex)
-    - Identificação de intenções
-    - Dicionários de respostas
-    - Regras de decisão
-    - Fallback
-    - Registro de conversas (logs)
-
-Importante:
-    Nesta versão NÃO utilizamos Machine Learning.
-
-    O chatbot não "aprende" sozinho.
-
-    O comportamento do sistema é definido por regras
-    criadas pelo programador.
-
-Versão: 1.0
 """
 
-# ==========================================================
-# 1. IMPORTAÇÃO DAS BIBLIOTECAS
-# ==========================================================
-
-# 're' significa Regular Expression (Expressão Regular).
-# Será utilizada para procurar padrões dentro das mensagens.
 import re
-
-# 'datetime' será utilizada para registrar data e hora
-# das mensagens no arquivo de log.
 from datetime import datetime
-
+import telebot
+from flask import Flask
+from threading import Thread
+import os
 
 # ==========================================================
-# 2. CONFIGURAÇÕES
+# CONFIGURAÇÕES
 # ==========================================================
 
-# Nome do arquivo onde serão armazenadas as conversas.
+# Cole aqui o TOKEN que o BotFather te deu
+TOKEN = os.environ.get("BOT_TOKEN")
+
 ARQUIVO_LOG = "conversas_farmacia.log"
 
+bot = telebot.TeleBot(TOKEN)
+
 
 # ==========================================================
-# 3. BASE DE CONHECIMENTO DO CHATBOT
+# BASE DE CONHECIMENTO + MEDICAMENTOS
 # ==========================================================
 
-"""
-Neste dicionário armazenamos as respostas associadas
-às diferentes intenções.
-
-Uma intenção representa aquilo que o usuário deseja.
-
-Por exemplo:
-
-    "Vocês têm dipirona?"
-
-possui a intenção:
-
-    verificar_estoque
-"""
+# (Cole aqui exatamente o mesmo RESPOSTAS, PALAVRAS_CHAVE 
+#  e MEDICAMENTOS que você já tem no seu código)
 
 RESPOSTAS = {
-
     "saudacao": (
         "Olá! Sou o assistente virtual da farmácia. "
         "Posso verificar a disponibilidade de medicamentos "
         "e informar para que eles servem. Como posso ajudar?"
     ),
-
     "horario_funcionamento": (
         "Nossa farmácia funciona de segunda a sábado, "
         "das 08:00 às 20:00, e aos domingos das 09:00 às 13:00."
     ),
-
     "verificar_estoque": (
         "Vou verificar a disponibilidade do medicamento para você. "
         "Por favor, informe o nome do remédio."
     ),
-
     "para_que_serve": (
         "Posso te informar a indicação do medicamento. "
         "Qual o nome do remédio que você deseja saber?"
     ),
-
     "precisa_receita": (
         "Alguns medicamentos só podem ser vendidos com receita médica. "
         "Informe o nome do remédio para eu verificar."
     ),
-
     "despedida": (
         "Foi um prazer ajudar. Cuide-se e volte sempre!"
     ),
-
 }
-
-
-# ==========================================================
-# 4. PALAVRAS-CHAVE ASSOCIADAS ÀS INTENÇÕES
-# ==========================================================
-
-"""
-Aqui está uma das partes mais importantes da Versão 1.
-
-O chatbot possui uma lista de palavras que ajudam a
-identificar a intenção da mensagem.
-
-Por exemplo:
-
-    "tem", "disponível", "estoque", "vende"
-
-estão associadas à intenção:
-
-    verificar_estoque
-
-Observe que isso NÃO é aprendizado de máquina.
-
-O programador está explicitamente informando ao programa
-quais palavras devem ser associadas a cada intenção.
-"""
 
 PALAVRAS_CHAVE = {
-
-    "saudacao": [
-        "oi",
-        "ola",
-        "olá",
-        "bom dia",
-        "boa tarde",
-        "boa noite",
-        "hey"
-    ],
-
-    "horario_funcionamento": [
-        "horario",
-        "horário",
-        "funcionamento",
-        "abre",
-        "fecha",
-        "aberto"
-    ],
-
-    "verificar_estoque": [
-        "tem",
-        "têm",
-        "disponivel",
-        "disponível",
-        "estoque",
-        "vende",
-        "vocês têm",
-        "voces tem",
-        "tem aí",
-        "tem ai"
-    ],
-
-    "para_que_serve": [
-        "serve",
-        "para que serve",
-        "indicação",
-        "indicacao",
-        "para que é",
-        "para que e",
-        "função",
-        "funcao",
-        "trata"
-    ],
-
-    "precisa_receita": [
-        "receita",
-        "receituario",
-        "receituário",
-        "controlado",
-        "preciso de receita"
-    ],
-
-    "despedida": [
-        "tchau",
-        "até mais",
-        "ate mais",
-        "até logo",
-        "ate logo",
-        "falou",
-        "obrigado",
-        "obrigada"
-    ]
+    "saudacao": ["oi", "ola", "olá", "bom dia", "boa tarde", "boa noite", "hey"],
+    "horario_funcionamento": ["horario", "horário", "funcionamento", "abre", "fecha", "aberto"],
+    "verificar_estoque": ["tem", "têm", "disponivel", "disponível", "estoque", "vende", "vocês têm", "voces tem", "tem aí", "tem ai"],
+    "para_que_serve": ["serve", "para que serve", "indicação", "indicacao", "para que é", "para que e", "função", "funcao", "trata"],
+    "precisa_receita": ["receita", "receituario", "receituário", "controlado", "preciso de receita"],
+    "despedida": ["tchau", "até mais", "ate mais", "até logo", "ate logo", "falou", "obrigado", "obrigada"]
 }
 
-
 # ==========================================================
-# 5. BASE DE MEDICAMENTOS (ESTOQUE + INDICAÇÃO)
+# COLE AQUI O SEU DICIONÁRIO MEDICAMENTOS COMPLETO (os 523)
 # ==========================================================
+#MEDICAMENTOS = {
+    # ... cole todo o conteúdo do MEDICAMENTOS aqui ...
+#}
 
-"""
-Dicionário com os medicamentos conhecidos pelo sistema.
-
-Cada medicamento possui:
-    - disponivel: True ou False
-    - indicacao: para que serve
-    - precisa_receita: True ou False
-"""
 
 # -*- coding: utf-8 -*-
 # Banco de dados de medicamentos para o Assistente de Farmácia
@@ -2832,387 +2699,163 @@ MEDICAMENTOS = {
 
 
 
+
 # ==========================================================
-# 6. NORMALIZAÇÃO DO TEXTO
+# FUNÇÕES DE PLN (iguais às suas)
 # ==========================================================
 
 def normalizar_texto(texto):
-    """
-    Normaliza uma mensagem recebida pelo chatbot.
-
-    O objetivo é reduzir algumas diferenças entre as formas
-    como as pessoas escrevem.
-
-    Exemplos:
-
-        "OI!!!"       -> "oi"
-        "  Dipirona " -> "dipirona"
-        "Ola..."      -> "ola"
-
-    Esta etapa representa uma parte importante do
-    pré-processamento de linguagem natural.
-    """
-
-    # Converte todas as letras para minúsculas.
     texto = texto.lower()
-
-    # Remove espaços no início e no final.
     texto = texto.strip()
-
-    # Remove pontuações.
     texto = re.sub(r"[^\w\s]", "", texto)
-
-    # Substitui vários espaços consecutivos por apenas um.
     texto = re.sub(r"\s+", " ", texto)
-
     return texto
 
 
-# ==========================================================
-# 7. TOKENIZAÇÃO
-# ==========================================================
-
 def tokenizar(texto):
-    """
-    Divide o texto em palavras (tokens).
-
-    Exemplo:
-
-        "vocês têm dipirona"
-
-    torna-se:
-
-        ["vocês", "têm", "dipirona"]
-
-    Nesta primeira versão utilizamos uma tokenização simples,
-    baseada nos espaços.
-    """
-
     return texto.split()
 
 
-# ==========================================================
-# 8. DETECÇÃO DE MEDICAMENTO NA MENSAGEM
-# ==========================================================
-
 def detectar_medicamento(texto):
-    """
-    Procura o nome de um medicamento conhecido dentro da mensagem.
-
-    Retorna o nome do medicamento encontrado ou None.
-    """
-
     texto = normalizar_texto(texto)
-
     for nome in MEDICAMENTOS.keys():
         if nome in texto:
             return nome
-
     return None
 
-
-# ==========================================================
-# 9. IDENTIFICAÇÃO DA INTENÇÃO
-# ==========================================================
 
 def identificar_intencao(tokens, texto_original):
-    """
-    Tenta descobrir a intenção da mensagem.
-
-    Estratégia utilizada:
-
-        1. Verificar expressões específicas.
-        2. Verificar palavras-chave.
-        3. Caso nada seja encontrado, retornar None.
-
-    Importante:
-        Esta função representa uma "classificação"
-        baseada em regras.
-
-        Ela ainda NÃO utiliza Machine Learning.
-    """
-
     texto = " ".join(tokens)
-
-    # ------------------------------------------------------
-    # Verificação das palavras-chave.
-    # ------------------------------------------------------
-
     for intencao, palavras in PALAVRAS_CHAVE.items():
-
         for palavra in palavras:
-
-            # Se a palavra-chave possuir mais de uma palavra,
-            # verificamos a expressão inteira.
             if " " in palavra:
-
                 if palavra in texto:
                     return intencao
-
-            # Caso seja uma palavra isolada, verificamos
-            # se ela aparece entre os tokens.
             else:
-
                 if palavra in tokens:
                     return intencao
-
-    # Nenhuma intenção foi identificada.
     return None
 
 
-# ==========================================================
-# 10. FALLBACK
-# ==========================================================
-
 def resposta_fallback():
-    """
-    Executada quando o chatbot não consegue identificar
-    a intenção do usuário.
-
-    O fallback é muito importante em sistemas conversacionais.
-
-    Um sistema real precisa saber lidar com situações
-    que não foram previstas.
-    """
-
     return (
-        "Não entendi muito bem. "
+        "Não entendi muito bem.\n"
         "Você pode perguntar, por exemplo:\n"
-        "- 'Vocês têm dipirona?'\n"
-        "- 'Para que serve o omeprazol?'\n"
-        "- 'Qual o horário de funcionamento?'"
+        "• Vocês têm dipirona?\n"
+        "• Para que serve o omeprazol?\n"
+        "• Qual o horário de funcionamento?"
     )
 
-
-# ==========================================================
-# 11. REGISTRO DE LOG
-# ==========================================================
 
 def registrar_log(mensagem_usuario, intencao, resposta):
-    """
-    Registra uma interação em um arquivo.
-
-    O log permite posteriormente analisar:
-
-        - o que o usuário perguntou;
-        - qual intenção foi identificada;
-        - qual resposta foi enviada;
-        - quando a interação ocorreu.
-
-    Esses dados poderão ser muito úteis nas próximas
-    versões do projeto.
-    """
-
-    data_hora = datetime.now().strftime(
-        "%Y-%m-%d %H:%M:%S"
-    )
-
+    data_hora = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     linha = (
         f"[{data_hora}] "
         f"USUARIO: {mensagem_usuario} | "
         f"INTENCAO: {intencao} | "
         f"BOT: {resposta}\n"
     )
-
-    with open(
-        ARQUIVO_LOG,
-        "a",
-        encoding="utf-8"
-    ) as arquivo:
-
+    with open(ARQUIVO_LOG, "a", encoding="utf-8") as arquivo:
         arquivo.write(linha)
 
 
-# ==========================================================
-# 12. PROCESSAMENTO DE UMA MENSAGEM
-# ==========================================================
-
 def processar_mensagem(mensagem):
-    """
-    Executa o pequeno pipeline de PLN da Versão 1.
-
-    Fluxo:
-
-        mensagem
-            ↓
-        normalização
-            ↓
-        tokenização
-            ↓
-        identificação da intenção
-            ↓
-        detecção de medicamento (se houver)
-            ↓
-        resposta
-            ↓
-        registro no log
-    """
-
-    # ------------------------------------------------------
-    # ETAPA 1 - NORMALIZAÇÃO
-    # ------------------------------------------------------
-
     texto_normalizado = normalizar_texto(mensagem)
-
-    # ------------------------------------------------------
-    # ETAPA 2 - TOKENIZAÇÃO
-    # ------------------------------------------------------
-
     tokens = tokenizar(texto_normalizado)
-
-    # ------------------------------------------------------
-    # ETAPA 3 - IDENTIFICAÇÃO DA INTENÇÃO
-    # ------------------------------------------------------
-
-    intencao = identificar_intencao(
-        tokens,
-        mensagem
-    )
-
-    # ------------------------------------------------------
-    # ETAPA 4 - DETECÇÃO DE MEDICAMENTO
-    # ------------------------------------------------------
-
+    intencao = identificar_intencao(tokens, mensagem)
     medicamento = detectar_medicamento(mensagem)
 
-    # ------------------------------------------------------
-    # ETAPA 5 - GERAÇÃO DA RESPOSTA
-    # ------------------------------------------------------
-
     if medicamento:
-
         dados = MEDICAMENTOS[medicamento]
 
-        # Caso o usuário pergunte se tem o medicamento
         if intencao == "verificar_estoque" or intencao is None:
-
             if dados["disponivel"]:
                 resposta = (
-                    f"Sim, temos {medicamento} disponível.\n"
+                    f"Sim, temos *{medicamento}* disponível.\n"
                     f"Indicação: {dados['indicacao']}"
                 )
                 if dados["precisa_receita"]:
-                    resposta += "\nAtenção: este medicamento precisa de receita médica."
+                    resposta += "\n\n⚠️ Este medicamento precisa de receita médica."
             else:
                 resposta = (
-                    f"No momento não temos {medicamento} em estoque.\n"
+                    f"No momento *não temos* {medicamento} em estoque.\n"
                     f"Indicação: {dados['indicacao']}"
                 )
-
             intencao = "verificar_estoque"
 
-        # Caso pergunte para que serve
         elif intencao == "para_que_serve":
-
             resposta = (
-                f"O medicamento {medicamento} serve para: "
+                f"O medicamento *{medicamento}* serve para:\n"
                 f"{dados['indicacao']}"
             )
-
             if dados["precisa_receita"]:
-                resposta += "\nEste medicamento é controlado e precisa de receita."
+                resposta += "\n\n⚠️ Este medicamento é controlado e precisa de receita."
 
-        # Caso pergunte sobre receita
         elif intencao == "precisa_receita":
-
             if dados["precisa_receita"]:
-                resposta = f"Sim, o medicamento {medicamento} precisa de receita médica."
+                resposta = f"Sim, o medicamento *{medicamento}* precisa de receita médica."
             else:
-                resposta = f"Não, o medicamento {medicamento} pode ser comprado sem receita."
+                resposta = f"Não, o medicamento *{medicamento}* pode ser comprado sem receita."
 
         else:
-            # Resposta padrão quando detecta o medicamento
             if dados["disponivel"]:
                 resposta = (
-                    f"Temos {medicamento} disponível.\n"
+                    f"Temos *{medicamento}* disponível.\n"
                     f"Indicação: {dados['indicacao']}"
                 )
             else:
                 resposta = (
-                    f"Não temos {medicamento} no momento.\n"
+                    f"Não temos *{medicamento}* no momento.\n"
                     f"Indicação: {dados['indicacao']}"
                 )
 
     elif intencao is not None:
-
         resposta = RESPOSTAS[intencao]
-
     else:
-
         intencao = "desconhecida"
         resposta = resposta_fallback()
 
-    # ------------------------------------------------------
-    # ETAPA 6 - REGISTRO
-    # ------------------------------------------------------
-
-    registrar_log(
-        mensagem,
-        intencao,
-        resposta
-    )
-
+    registrar_log(mensagem, intencao, resposta)
     return resposta
 
 
 # ==========================================================
-# 13. INTERFACE DO CHATBOT
+# HANDLERS DO TELEGRAM
 # ==========================================================
 
-def iniciar_chat():
-    """
-    Inicia uma conversa no terminal.
-
-    O usuário pode digitar mensagens normalmente.
-
-    Para encerrar:
-
-        sair
-        exit
-        quit
-    """
-
-    print("=" * 60)
-    print("       ASSISTENTE VIRTUAL DA FARMÁCIA")
-    print("=" * 60)
-
-    print()
-    print("Olá! Posso ajudar com disponibilidade de medicamentos")
-    print("e informações sobre para que eles servem.")
-    print("Para sair, digite 'sair'.")
-    print()
-
-    while True:
-
-        # Recebe a mensagem do usuário.
-        mensagem = input("Você: ")
-
-        # Verifica se o usuário deseja encerrar.
-        if mensagem.lower().strip() in [
-            "sair",
-            "exit",
-            "quit"
-        ]:
-
-            resposta = RESPOSTAS["despedida"]
-
-            print("Bot:", resposta)
-
-            break
-
-        # Processa a mensagem utilizando o pipeline.
-        resposta = processar_mensagem(mensagem)
-
-        # Exibe a resposta.
-        print("Bot:", resposta)
-
-        print()
+@bot.message_handler(commands=['start', 'ajuda', 'help'])
+def enviar_boas_vindas(message):
+    texto = (
+        "Olá! Sou o *Assistente Virtual da Farmácia*.\n\n"
+        "Posso te ajudar com:\n"
+        "• Verificar se temos um medicamento\n"
+        "• Informar para que o medicamento serve\n"
+        "• Dizer se precisa de receita\n"
+        "• Horário de funcionamento\n\n"
+        "É só mandar sua pergunta!"
+    )
+    bot.reply_to(message, texto, parse_mode="Markdown")
 
 
+@bot.message_handler(func=lambda message: True)
+def responder(message):
+    try:
+        resposta = processar_mensagem(message.text)
+        bot.reply_to(message, resposta, parse_mode="Markdown")
+    except Exception as e:
+        bot.reply_to(message, "Desculpe, ocorreu um erro. Tente novamente.")
+        print(f"Erro: {e}")
+
+app = Flask('')
+@app.route('/')
+def home():
+    return "Bot online"
 # ==========================================================
-# 14. PONTO DE ENTRADA DO PROGRAMA
+# INICIAR O BOT
 # ==========================================================
 
 if __name__ == "__main__":
-
-    iniciar_chat()
+    print("Bot da Farmácia iniciado...")
+    print("Pressione Ctrl + C para parar.")
+    Thread(target=lambda: app.run(host='0.0.0.0', port=8080)).start()
+    bot.infinity_polling()
